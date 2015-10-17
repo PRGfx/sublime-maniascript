@@ -32,6 +32,42 @@ These files define a language grammar for syntax highlighting ManiaScript files.
 - Highlight most of the ManiaScript classes/enums/variables
 - You can autocomplete some ManiaScript functions and classes
 
+### Snippets
+<table>
+	<tr>
+		<th>Snippet</th>
+		<th>Trigger</th>
+		<th>Output</th>
+	</tr>
+	<tr>
+		<td>#Include frame</td>
+		<td>Include</td>
+		<td>`#Include "..." as ...`</td>
+	</tr>
+	<tr>
+		<td>declare</td>
+		<td>dec</td>
+		<td>`declare ... ...;`</td>
+	</tr>
+	<tr>
+		<td>declare persistent</td>
+		<td>dec:p</td>
+		<td>`declare persistent ... ... for ...;`</td>
+	</tr>
+	<tr>
+		<td>function</td>
+		<td>fun</td>
+		<td>```... ... (...) {
+			...
+		}```</td>
+	</tr>
+	<tr>
+		<td>cast</td>
+		<td>via strg+shift+p</td>
+		<td>`(<Selection> as ...)`</td>
+	</tr>
+</table>
+
 
 Contribution
 ------------

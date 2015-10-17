@@ -1,0 +1,8 @@
+<snippet>
+	<content><![CDATA[${1:Type} ${2:Name} (${3:Arguments}) {
+	$4
+}]]></content>
+	<tabTrigger>fun</tabTrigger>
+	<scope>source.ms</scope>
+	<description>Function</description>
+</snippet>

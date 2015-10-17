@@ -1,0 +1,6 @@
+<snippet>
+	<content><![CDATA[#Include "${1:Library}" as ${2:$1}]]></content>
+	<tabTrigger>Include</tabTrigger>
+	<scope>source.ms</scope>
+	<description>#Include</description>
+</snippet>

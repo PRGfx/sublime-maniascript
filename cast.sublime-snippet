@@ -1,0 +1,5 @@
+<snippet>
+	<content><![CDATA[(${1:$TM_CURRENT_WORD} as ${2:Type})]]></content>
+	<scope>source.ms</scope>
+	<description>ManiaScript Cast</description>
+</snippet>
