@@ -4,71 +4,155 @@ import os
 import re
 import json
 
-def usage():
-	print('Usage: python %s <big.h path>' % sys.argv[0])
 
-def createCompletion(trigger, content, helper=None):
-	helperText = ""
-	if helper is not None:
-		helperText = "\\t" + helper
-	return {
-		'trigger': trigger + helperText,
-		'contents': content
-	}
+def usage():
+    '''Prints usage hints for this script'''
+    print('Usage: python %s <big.h path>' % sys.argv[0])
+
+
+def __createCompletion(trigger, content, helper=None):
+    '''Fills a completion snippet object with data.
+
+    Args:
+        trigger: Text to trigger the snippet.
+        content: The content to be inserted once triggered.
+        helper: Optional argument to define additional hints in the autocompletion menu.
+    Returns:
+        A dictionary with the keys 'trigger' and 'contents'. See the Sublime Text documentation for further details on the format.
+    '''
+    helperText = ""
+    if helper is not None:
+        helperText = "\\t" + helper
+    return {
+        'trigger': trigger + helperText,
+        'contents': content
+    }
+
+
+def __buildMatcher(contents):
+    '''Creates matcher regex pattern for a given list of class names.
+
+    Args:
+        contents: A list of words - usually class names.
+    Returns:
+        A string matching the given words as whole words.
+    '''
+    return '\\\\b(' + '|'.join(contents) + ')\\\\b'
+
 
 def parseBigH(bigFileContent):
-	completions = []
-	# classes
-	classRe = re.compile('^\s*class\s(.*?)\s*\{', re.M)
-	classes = re.findall(classRe, bigFileContent)
-	for x in classes:
-		completions.append(createCompletion(x, x))
-	# structs
-	structsRe = re.compile('struct\s+(\w+).*?\{((\s*enum\s+(\w+)\s*\{.*?\};)+.*?)\};', re.S)
-	enumRe = re.compile('enum\s+(\w+)\s*\{(.*?)\};', re.S);
-	# membersRe = re.compile('^\s*(const\s+)?(\w+)\s(\S+?);', re.M)
-	membersRe = re.compile('(const\s)?\s*(\w+)\s(\S+?(\(.*?\))?);', re.M)
-	structs = re.findall(structsRe, bigFileContent)
-	for [structName, body, a, b] in structs:
-		completions.append(createCompletion(structName, structName))
-		enums = re.findall(enumRe, body);
-		for [enumName, enumValues] in enums:
-			for enumValue in list(filter(None, map(lambda x : x.strip(), enumValues.split(',')))):
-				enumTitle = '::'.join([structName, enumName, enumValue])
-				completions.append(createCompletion(enumTitle, enumTitle))
-		members = re.findall(membersRe, body)
-		for [_1, memberType, memberName, _2] in members:
-			memberTitle = memberType.strip() + ' ' + structName
-			if memberName.endswith(')'):
-				parts = memberName[:-1].split('(')
-				if parts[1].strip() == "":
-					memberArgs = ''
-				else:
-					memberArgs = ', '.join(['${' + str(i + 1) + ':' + x + '}' for i, x in enumerate(parts[1].split(','))])
-					# memberArgs = ', '.join(['${' + x + '}' for i, x in enumerate(parts[1].split(','))])
-				completions.append(createCompletion(memberTitle + '.' + parts[0] + '('  + ', '.join(map(lambda x: x.strip(), parts[1].split(','))) + ')',\
-					parts[0] + '('  + memberArgs + ')'))
-			else:
-				completions.append(createCompletion(memberTitle + '.' + memberName, memberName))
-	return completions
+    '''Gets necessary data from the big.h file generated from the game.
+
+    Args:
+        bigFileContent: String of the contents from the big.h file.
+    '''
+    completions = []
+    matchers = {}
+    # classes
+    classRe = re.compile('^\s*class\s(.*?)\s*\{', re.M)
+    classes = re.findall(classRe, bigFileContent)
+    for x in classes:
+        completions.append(__createCompletion(x, x))
+    matchers['classes'] = __buildMatcher(classes)
+    # structs
+    structsRe = re.compile(
+        'struct\s+(\w+).*?\{((\s*enum\s+(\w+)\s*\{.*?\};)*.*?)\};', re.S)
+    enumRe = re.compile('enum\s+(\w+)\s*\{(.*?)\};', re.S)
+    membersRe = re.compile('(const\s)?\s*(\w+)\s(\S+?(\(.*?\))?);', re.M)
+    structs = re.findall(structsRe, bigFileContent)
+    structNames = []
+    enumNames = []
+    variableNames = []
+    for [structName, body, a, b] in structs:
+        structNames.append(structName)
+        completions.append(__createCompletion(structName, structName))
+        enums = re.findall(enumRe, body)
+        # enums
+        for [enumName, enumValues] in enums:
+            enumNames.append(enumName)
+            for enumValue in list(filter(None, map(lambda x: x.strip(), enumValues.split(',')))):
+                enumTitle = '::'.join([structName, enumName, enumValue])
+                completions.append(__createCompletion(enumTitle, enumTitle))
+        members = re.findall(membersRe, body)
+        for [_1, memberType, memberName, _2] in members:
+            memberTitle = memberType.strip() + ' ' + structName
+            if memberName.endswith(')'):
+                # methods
+                parts = memberName[:-1].split('(')
+                if parts[1].strip() == "":
+                    memberArgs = ''
+                else:
+                    memberArgs = ', '.join(
+                        ['${' + str(i + 1) + ':' + x + '}' for i, x in enumerate(parts[1].split(','))])
+                completions.append(__createCompletion(memberTitle + '.' + parts[0] + '(' + ', '.join(map(lambda x: x.strip(), parts[1].split(','))) + ')',
+                                                      parts[0] + '(' + memberArgs + ')'))
+            else:
+                # properties
+                variableNames.append(memberName)
+                completions.append(
+                    __createCompletion(memberTitle + '.' + memberName, memberName))
+    matchers['structs'] = __buildMatcher(structNames)
+    matchers['enums'] = __buildMatcher(enumNames)
+    matchers['variables'] = __buildMatcher(variableNames)
+    return completions, matchers
+
 
 def writeCompletions(data, outputFile, scope):
-	data = {'scope': scope, 'completions': data}
-	with open(outputFile, 'w') as outfile:
-		json.dump(data, outfile, indent = 4, ensure_ascii = False)
+    '''Writes the given completions to a file
+
+    Args:
+        data: A list of completion objects as generated by __createCompletion.
+        outputFile: The name of the file to write the completions to.
+        scope: The syntax scope for the completions.
+    '''
+    data = {'scope': scope, 'completions': data}
+    with open(outputFile, 'w') as outfile:
+        json.dump(data, outfile, indent=4, ensure_ascii=False)
+
+
+def writeTmLanguage(data, outputFile):
+    '''Inserts found classes, structs, enums and variables into the syntax file.
+
+    Args:
+        data: A dictionary containing the matcher strings as generated by
+            __buildMatcher with the keys 'classes', 'structs', 'variables' and
+            'enums'.
+        outputFile: The name of the file to write the data to. Also the file
+            which already contains the remaining syntax definitions!
+    '''
+    with open(outputFile, 'r+') as outfile:
+        content = outfile.read()
+        outfile.seek(0)
+        regC = re.compile(
+            '(<!-- CLASSES -->.+?match.+?string>)(.*?)(</string>)', re.S)
+        content = regC.sub(r'\1%s\3' % data['classes'], content)
+        regS = re.compile(
+            r'(<!-- STRUCTS -->.+?match.+?string>)(.*?)(</string>)', re.S)
+        content = regS.sub(r'\1%s\3' % data['structs'], content)
+        regV = re.compile(
+            r'(<!-- Variable -->.+?match.+?string>)(.*?)(</string>)', re.S)
+        content = regV.sub(r'\1%s\3' % data['variables'], content)
+        regE = re.compile(
+            r'(<!-- ENUMS -->.+?match.+?string>)(.*?)(</string>)', re.S)
+        content = regE.sub(r'\1%s\3' % data['enums'], content)
+        outfile.write(content)
+        outfile.truncate()
+
 
 def main(args):
-	if len(args) < 1:
-		usage()
-		sys.exit(1)
-	bigFile = args[0]
-	if not os.path.exists(bigFile):
-		print('big.h file not found!')
-		sys.exit(1)
-	with open(bigFile, 'r') as f:
-		bigFileContent = f.read()
-	completions = parseBigH(bigFileContent)
-	writeCompletions(completions, 'ManiaScript.sublime-completions', 'source.ms')
+    if len(args) < 1:
+        usage()
+        sys.exit(1)
+    bigFile = args[0]
+    if not os.path.exists(bigFile):
+        print('big.h file not found!')
+        sys.exit(1)
+    with open(bigFile, 'r') as f:
+        bigFileContent = f.read()
+    completions, matchers = parseBigH(bigFileContent)
+    writeCompletions(
+        completions, 'ManiaScript.sublime-completions', 'source.ms')
+    writeTmLanguage(matchers, 'ManiaScript.tmLanguage')
 
 if __name__ == "__main__":
-	main(sys.argv[1:])
+    main(sys.argv[1:])
